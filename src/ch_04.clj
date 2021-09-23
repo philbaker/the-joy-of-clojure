@@ -97,6 +97,67 @@
 ; Qualifying keywords
 ; Keywords don't belong to any specific namespace, although they may appear
 ; to if you start them with two colons rather than one
-::not-in-ns ; :joy.ch-04/not-in-ns
+::not-in-ns ; :joy.ch-03/not-in-ns
 ; The prefix on a keyword is arbitrary and in no way associates it with a
 ; namespace
+
+(defn do-blowfish [directive]
+  (case directive
+    :aquarium/blowfish (println "feed the fish")
+    :crypto/blowfish (println "encode the message")
+    :blowfish (println "not sure what to do")))
+
+(ns crypto)
+(do-blowfish :blowfish) ; (out) not sure what to do
+(do-blowfish ::blowfish) ; (out) encode the message
+
+(ns aquarium)
+(do-blowfish :blowfish) ; (out) not sure what to do
+(do-blowfish ::blowfish) ; (out) feed the fish
+
+(identical? 'goat 'goat) ; false
+(name 'goat) ; "goat"
+
+; The identical? function in clojure only ever returns true when the symbols 
+; are the same object
+(let [x 'goat, y x]
+  (identical? x y)) ; true
+
+; Metadata
+(let [x (with-meta 'goat {:ornery true})
+      y (with-meta 'goat {:ornery false})]
+  [(= x y)
+   (identical? x y)
+   (meta x)
+   (meta y)]) ; [true false {:ornery true} {:ornery false}]
+
+; Symbols and namespaces
+; Like keywords, symbols don't belong to any specific namespace. Take, for
+; example the following code:
+(ns where-is)
+(def a-symbol 'where-am-i)
+a-symbol ; where-am-i
+(resolve 'a-symbol) ; #'where-is/a-symbol
+`a-symbol ; where-is/a-symbol
+
+; Lisp-1
+; Clojure is known as a Lisp-1 which means it uses the same name resolution
+; for function and value bindings.
+(defn best [f xs]
+  (reduce #(if (f % %2) % %2) xs))
+
+(best > [1 3 4 2 7 5 3]) ; 7
+
+; Regular expressions
+(class #"example") ; java.util.regex.Pattern
+
+(java.util.regex.Pattern/compile "\\d") ; #"\d"
+
+; Regular expression functions
+; The re-seq function is Clojure's regex workhorse. It returns a lazy seq of
+; all matches in a string, which means it can be used to efficiently test
+; whether a string matches or to find matches in a string or a mapped file
+(re-seq #"\w+" "one-two/three") ; ("one" "two" "three")
+(re-seq #"\w*(\w)" "one-two/three") ; (["one" "e"] ["two" "o"] ["three" "e"])
+; Note: Avoid using mutable matchers and the "Matcher" object"
+
