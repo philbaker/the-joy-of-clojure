@@ -103,3 +103,66 @@ tree1
 ; then use `rest` instead of `next`
 ; 3. Prefer higher-order functions when processing sequences
 ; 4. Don't hold on to your head
+
+; using lazy-seq to avoid stack overflow
+(defn lz-rec-step [s]
+  (lazy-seq
+    (if (seq s)
+      [(first s) (lz-rec-step (rest s))]
+      [])))
+
+(lz-rec-step [1 2 3 4]) ; (1 (2 (3 (4 ()))))
+
+(class (lz-rec-step [1 2 3 4])) ; clojure.lang.LazySeq
+
+(dorun (lz-rec-step (range 200000))) 
+; nil
+; no longer produces a stack overflow
+
+(defn simple-range [i limit]
+  (lazy-seq
+    (when (< i limit)
+      (cons i (simple-range (inc i) limit)))))
+
+(simple-range 0 9) ; (0 1 2 3 4 5 6 7 8)
+
+; Losing your head
+; The primary advantage of laziness in Clojure is that it prevents the
+; full realization of interim results during a calculation
+; If you hold onto the head of a sequence somewhere in a function, the 
+; sequence will not be garbage collected
+(let [r (range 1e9)]
+  (first r)
+  (last r)) ; 999999999
+
+(let [r (range 1e9)]
+  (last r)
+  (first r))
+; (err) Execution error (OutOfMemoryError) at ch-06/eval3672 (user.clj:139).
+; (err) Java heap space
+;
+; The first example eventually evaluates because Clojure can deduce that r
+; is no longer needed. In the second case Clojure can't rearrange the
+; the operations because it has no way to guarantee that order is unimportant
+
+; Infinite sequences
+(defn triangle [n]
+  (/ (* n (+ n 1)) 2))
+
+(triangle 10) ; 55
+
+; This example works but it only does what it does - it's not flexible
+(map triangle (range 1 11)) ; (1 3 6 10 15 21 28 36 45 55)
+
+(def tri-nums (map triangle (iterate inc 1)))
+
+(take 10 tri-nums) ; (1 3 6 10 15 21 28 36 45 55)
+(take 10 (filter even? tri-nums)) ; (6 10 28 36 66 78 120 136 190 210)
+(nth tri-nums 99) ; 5050
+(double (reduce + (take 1000 (map / tri-nums)))) ; 1.998001998001998
+(take 2 (drop-while #(< % 10000) tri-nums)) ; (10011 10153)
+
+(defn defer-expersive [cheap expensive]
+  (if-let [good-enough (force cheap)]
+    good-enough
+    (force expensive))) ; #'ch-06/defer-expersive
