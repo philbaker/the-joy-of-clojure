@@ -162,7 +162,80 @@ tree1
 (double (reduce + (take 1000 (map / tri-nums)))) ; 1.998001998001998
 (take 2 (drop-while #(< % 10000) tri-nums)) ; (10011 10153)
 
-(defn defer-expersive [cheap expensive]
+(defn defer-expensive [cheap expensive]
   (if-let [good-enough (force cheap)]
     good-enough
-    (force expensive))) ; #'ch-06/defer-expersive
+    (force expensive)))
+
+(defer-expensive 
+  (delay :cheap)
+  (delay (do (Thread/sleep 5000) :expensive))) ; :cheap
+
+(defer-expensive 
+  (delay false)
+  (delay (do (Thread/sleep 5000) :expensive))) ; :expensive
+
+; if-let and when-let
+; useful when you'd like to bind the results of an expression based on
+; whether it returns a truthy value
+(if :truthy-thing
+  (let [res :truthy-thing] (println res)))
+; (out) :truthy-thing
+; nil
+
+(if-let [res :truthy-thing] (println res) nil)
+; (out) :truthy-thing
+; nil
+
+(defn inf-triangles [n]
+  {:head (triangle n)
+   :tail (delay (inf-triangles (inc n)))})
+
+(defn head [l] (:head l))
+(defn tail [l] (force (:tail l)))
+
+(def tri-nums-2 (inf-triangles 1))
+(head tri-nums-2) ; 1
+(head (tail tri-nums-2)) ; 3
+(head (tail (tail tri-nums-2))) ; 6
+
+(defn taker [n l]
+  (loop [t n, src l, ret []]
+    (if (zero? t)
+      ret
+      (recur (dec t) (tail src) (conj ret (head src))))))
+
+(defn nthr [l n]
+  (if (zero? n)
+    (head l)
+    (recur (tail l) (dec n))))
+
+(taker 10 tri-nums-2) ; [1 3 6 10 15 21 28 36 45 55]
+
+(nthr tri-nums-2 99) ; 5050
+
+; Quicksort implementation
+(defn rand-ints [n]
+  (take n (repeatedly #(rand-int n))))
+
+(rand-ints 10) ; (7 6 0 5 8 8 1 1 3 6)
+
+(defn sort-parts [work]
+  (lazy-seq
+    (loop [[part & parts] work]
+      (if-let [[pivot & xs] (seq part)] ; pull apart work
+              (let [smaller? #(< % pivot)] ; define pivot comparison fn
+                (recur (list*
+                         (filter smaller? xs) ; work all < pivot
+                         pivot ; work the pivot itself
+                         (remove smaller? xs) ; work all > pivot
+                         parts))) ; concat parts
+              (when-let [[x & parts] parts]
+                (cons x (sort-parts parts))))))) ; sort the rest if more parts
+
+(defn qsort [xs]
+  (sort-parts (list xs))) ; #'ch-06/qsort
+
+(qsort [2 1 4 3]) ; (1 2 3 4)
+(qsort (rand-ints 20)) ; (0 1 1 2 2 3 4 4 5 6 7 8 8 9 9 9 10 12 14 15)
+(first (qsort (rand-ints 100))) ; 1
