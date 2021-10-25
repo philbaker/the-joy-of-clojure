@@ -259,3 +259,178 @@
 
 (add-and-get 7)
 ; => 11
+
+; Functions returning closures
+(defn times-n [n]
+  (let [x n]
+    (fn [y] (* y x))))
+
+(times-n 4)
+; => #function[ch-07/times-n/fn--10156]
+
+(def times-four (times-n 4))
+
+(times-four 10)
+; => 40
+
+; Closing over parameters
+(defn times-n [n]
+  (fn [y] (* y n)))
+
+(defn divisible [denom]
+  (fn [num]
+    (zero? (rem num denom))))
+
+((divisible 3) 6)
+; => true
+
+((divisible 3) 7)
+; => false
+
+; Passing closures as functions
+
+(filter even? (range 10))
+; => (0 2 4 6 8)
+
+(filter (divisible 4) (range 10))
+; => (0 4 8)
+
+(defn filter-divisible [denom s]
+  (filter (fn [num] (zero? (rem num denom))) s))
+
+(filter-divisible 4 (range 10))
+; => (0 4 8)
+
+(defn filter-divisible-2 [denom s]
+  (filter #(zero? (rem % denom)) s))
+
+(filter-divisible-2 5 (range 20))
+;; => (0 5 10 15)
+
+(def bearings [{:x 0, :y 1} ; north
+               {:x 1, :y 0} ; east
+               {:x 0, :y -1} ; south
+               {:x -1, :y 0}]) ; west
+
+(defn forward [x y bearing-num]
+  [(+ x (:x (bearings bearing-num)))
+   (+ y (:y (bearings bearing-num)))])
+
+(forward 5 5 0)
+; => [5 6]
+
+(forward 5 5 1)
+; => [6 5]
+
+(forward 5 5 2)
+; => [5 4]
+
+(defn bot [x y bearing-num]
+  {:coords [x y]
+   :bearing ([:north :east :south :west] bearing-num)
+   :forward (fn [] (bot (+ x (:x (bearings bearing-num)))
+                        (+ y (:y (bearings bearing-num)))
+                        bearing-num))})
+
+(:coords (bot 5 5 0))
+; => [5 5]
+
+(:bearing (bot 5 5 0))
+; => :north
+
+(:coords ((:forward (bot 5 5 0))))
+; => [5 6]
+
+(defn bot-2 [x y bearing-num]
+  {:coords [x y]
+   :bearing ([:north :east :south :west] bearing-num)
+   :forward (fn [] (bot (+ x (:x (bearings bearing-num)))
+                        (+ y (:y (bearings bearing-num)))
+                        bearing-num))
+   :turn-right (fn [] (bot x y (mod (+ 1 bearing-num) 4)))
+   :turn-left (fn [] (bot x y (mod (- 1 bearing-num) 4)))})
+
+(:bearing ((:forward ((:forward ((:turn-right (bot-2 5 5 0))))))))
+; => :east
+
+(:coords ((:forward ((:forward ((:turn-right (bot-2 5 5 0))))))))
+; => [7 5]
+
+
+(defn mirror-bot [x y bearing-num]
+  {:coords [x y]
+   :bearing ([:north :south :west] bearing-num)
+   :forward (fn [] (mirror-bot (- x (:x (bearings bearing-num)))
+                               (- y (:y (bearings bearing-num)))
+                               bearing-num))
+   :turn-right (fn [] (mirror-bot x y (mod (- 1 bearing-num) 4)))
+   :turn-left (fn [] (mirror-bot x y (mod (+ 1 bearing-num) 4)))})
+
+
+;; Recursion
+
+(defn pow [base exp]
+  (if (zero? exp)
+    1
+    (* base (pow base (dec exp)))))
+
+(pow 2 10)
+; => 1024
+
+(pow 1.01 925)
+; => 9937.353723241924
+
+(pow 2 10000)
+; StackOverflowError
+
+(defn pow-2 [base exp]
+  (letfn [(kapow [base exp acc]
+            (if (zero? exp)
+              acc
+              (recur base (dec exp) (* base acc))))]
+    (kapow base exp 1)))
+
+(pow-2 2N 10000)
+;; => 199506311688075838488374216268358508382349683188...
+
+(def simple-metric {:meter 1
+                    :km 1000
+                    :cm 1/100
+                    :mm [1/10 :cm]})
+
+; How many meters are in 3 kilometers, 10 meters, 80 centimeters,
+; 10 millimeters?
+(->    (* 3  (:km simple-metric))
+    (+ (* 10 (:meter simple-metric)))
+    (+ (* 80 (:cm simple-metric)))
+    (+ (* (:cm simple-metric)
+          (* 10 (first (:mm simple-metric)))))
+    float)
+; => 3010.81
+
+
+(defn convert [context descriptor]
+  (reduce (fn [result [mag unit]]
+            (+ result
+               (let [val (get context unit)]
+                 (if (vector? val)
+                   (* mag (convert context val))
+                   (* mag val)))))
+            0
+            (partition 2 descriptor)))
+
+
+(convert simple-metric [1 :meter])
+; => 1
+
+(convert simple-metric [50 :cm])
+; => 1/2
+
+(convert simple-metric [100 :mm])
+; => 1/10
+
+(float (convert simple-metric [3 :km 10 :meter 80 :cm 10 :mm]))
+; => 3010.81
+
+(convert {:bit 1 :byte 8 :nibble [1/2 :byte]} [32 :nibble])
+; => 128N
