@@ -434,3 +434,145 @@
 
 (convert {:bit 1 :byte 8 :nibble [1/2 :byte]} [32 :nibble])
 ; => 128N
+
+;; Tail recursion
+; Greatest common denominator
+; No tail call optimisation - JVM doesn't provide it so this will
+; not be optimised
+(defn gcd [x y]
+  (cond
+    (> x y) (gcd (- x y) y)
+    (< x y) (gcd x (- y x))
+    :else x))
+
+(gcd 100 5)
+; => 5
+
+
+(defn gcd-tco [x y]
+  (cond
+    (> x y) (recur (- x y) y)
+    (< x y) (recur x (- y x))
+    :else x))
+
+(gcd-tco 100 5)
+; => 5
+
+(defn elevator [commands]
+  (letfn
+   [(ff-open [[_ & r]]
+      "When the elevator is open on the 1st floor
+              it can either close or be done."
+      #(case _
+         :close (ff-closed r)
+         :done true
+         false))
+    (ff-closed [[_ & r]]
+      "When the elevator is closed on the 1st floor
+                it can either open or go up."
+      #(case _
+         :open (ff-open r)
+         :up (sf-closed r)
+         false))
+    (sf-closed [[_ & r]]
+      "When the elevator is clsoed on the 2nd floor
+                it can either go down or open."
+      #(case _
+         :down (ff-closed r)
+         :open (sf-open r)
+         false))
+    (sf-open [[_ & r]]
+      "When the elevator is open on the 2nd floor
+              it can either close or be done."
+      #(case _
+         :close (sf-closed r)
+         :done true
+         false))]
+    (trampoline ff-open commands)))
+
+(elevator [:close :open :close :up :open :open :done])
+; => false
+
+(elevator [:close :up :open :close :down :open :done])
+; => true
+
+;; Continuation-passing style
+; Not prevalent in Clojure but is part of the functional tradition
+; A way of generalising a computation by viewing it in terms of
+; up to three functions:
+; - Accept: Decides when a computation should terminate
+; - Return: Wraps the return values
+; - Continuation: Provides the next step in the computation
+; Factorial is a illustrative example
+(defn fac-cps [n k]
+  (letfn [(cont [v] (k (* v n)))]
+    (if (zero? n)
+      (k 1)
+      (recur (dec n) cont))))
+
+(defn fac [n]
+  (fac-cps n identity))
+
+(fac 10)
+; => 3628800
+
+; The power of CPS is that you can extract more generic function
+; builders using CPS
+(defn mk-cps [accept? kend kont] ;; Next
+  (fn [n]
+    ((fn [n k]
+       (let [cont (fn [v]
+                    (k ((partial kont v) n)))]
+         (if (accept? n) ;; Accept
+           (k 1) ;; Return
+           (recur (dec n) cont))))
+     n kend)))
+
+
+(def fac-2
+  (mk-cps zero?
+          identity
+          #(* %1 %2)))
+
+(fac-2 10)
+; => 3628800
+
+(def tri
+  (mk-cps #(== 1 %)
+          identity
+          #(+ %1 %2)))
+
+(tri 10)
+; => 55
+
+;; A* pathfinding algorithm
+; Maintains a set of candidate poths through a "world" with the
+; purpose of finding the least difficult path to some goal
+(def world [[  1   1   1   1   1]
+            [999 999 999 999   1]
+            [  1   1   1   1   1]
+            [  1 999 999 999 999]
+            [  1   1   1   1   1]])
+
+(defn neighbors
+  ([size yx] (neighbors [[-1 0] [1 0] [0 -1] [0 1]]
+                        size
+                        yx))
+  ([deltas size yx]
+   (filter (fn [new-yx]
+             (every? #(< -1 % size) new-yx))
+           (map #(vec (map + yx %))
+                deltas))))
+
+(neighbors 5 [0 0])
+; => ([1 0] [0 1])
+
+(defn estimate-cost [step-cost-est size y x]
+  (* step-cost-est
+     (- (+ size size) y x 2)))
+
+(estimate-cost 900 5 0 0)
+; => 7200
+
+(estimate-cost 900 5 4 4)
+; => 0
