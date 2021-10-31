@@ -1,5 +1,8 @@
 (ns ch-08
-  (:require [clojure.walk :as walk]))
+  (:require [clojure.walk :as walk]
+            [clojure.xml :as xml])
+  (:import [java.io BufferedReader InputStreamReader]
+          [java.net URL]))
 
 ;; Macros
 
@@ -85,3 +88,145 @@
 
 (unless (even? 2) "Now we don't.")
 ; => nil
+
+(unless true (println "nope"))
+; => nil
+
+(unless false (println "yep!"))
+; => nil
+
+(macroexpand `(if (not condition) "got it"))
+; => (if (clojure.core/not ch-08/condition) "got it")
+
+(eval `(if (not condition) "got it"))
+; Caused by java.lang.RuntimeException
+; No such var: ch-08/condition
+
+(def condition false)
+
+(eval `(if (not condition) "got it"))
+; => "got it"
+
+(defmacro def-watched [name & value]
+  `(do
+     (def ~name ~@value)
+     (add-watch (var ~name)
+                :re-bind
+                (fn [~'key ~'r old# new#]
+                  (println old# " -> " new#)))))
+
+(def-watched x (* 12 12))
+x
+; => 144
+
+(def x 0)
+; 144  ->  144
+; 144  ->  0
+
+; Using macros to change forms
+(defmacro domain [name & body]
+  `{:tag :domain
+    :attrs {:name (str '~name)}
+    :content [~@body]})
+
+(declare handle-things)
+
+(defmacro grouping [name & body]
+  `{:tag :grouping,
+    :attrs {:name (str '~name)}
+    :content [~@(handle-things body)]})
+
+
+(declare grok-attrs grok-props)
+
+(defn handle-things [things]
+  (for [t things]
+    {:tag :thing
+     :attrs (grok-attrs (take-while (comp not vector?) t))
+     :content (if-let [c (grok-props (drop-while (comp not vector?) t))]
+                [c]
+                [])}))
+
+(defn grok-attrs [attrs]
+  (into {:name (str (first attrs))}
+        (for [a (rest attrs)]
+          (cond
+            (list? a) [:isa (str (second a))]
+            (string? a) [:comment a]))))
+
+
+(defn grok-props [props]
+  (when props
+    {:tag :properties :attrs nil
+     :content (apply vector (for [p props]
+                              {:tag :property
+                               :attrs {:name (str (first p))}
+                               :content nil}))}))
+
+(def d
+  (domain man-vs-monster
+          (grouping people
+                    (Human "A stock human")
+                    (Man (isa Human)
+                         "A man, baby"
+                         [name]
+                         [has-beard?]))
+          (grouping monsters
+                    (Chupacabra
+                     "A fierce, yet elusive creature"
+                     [eats-goats?]))))
+
+(:tag d)
+; => :domain
+
+(:tag (first (:content d)))
+; => :grouping
+
+(xml/emit d)
+; <?xml version='1.0' encoding='UTF-8'?>
+; <domain name='man-vs-monster'>
+;   <grouping name='people'>
+;     <thing name='Human' comment='A stock human'>
+;       <properties>
+;       </properties>
+;     </thing>
+;     <thing name='Man' isa='Human' comment='A man, baby'>
+;       <properties>
+;         <property name='name'/>
+;         <property name='has-beard?'/>
+;       </properties>
+;     </thing>
+;   </grouping>
+;   <grouping name='monsters'>
+;     <thing name='Chupacabra' comment='A fierce, yet elusive creature'>
+;       <properties>
+;         <property name='eats-goats?'/>
+;       </properties>
+;     </thing>
+;   </grouping>
+; </domain>
+
+; Using macros to control symbolic resolution time
+(defmacro resolution [] `x)
+
+(macroexpand '(resolution))
+; => ch-08/x
+
+(def x2 9)
+(let [x2 109] (resolution))
+; => 9
+
+; Anaphora
+(defmacro awhen [expr & body]
+  `(let [~'it ~expr]
+     (if ~ 'it
+       (do ~@body))))
+
+(awhen [1 2 3] (it 2))
+; => 3
+
+(awhen nil (println "Will never get here"))
+; => nil
+
+(awhen 1 (awhen 2 [it]))
+; => [2]
