@@ -11,6 +11,7 @@
 (beget {:sub 0} {:super 1})
 ;; => {:sub 0, :ch-09-multimethods/prototype {:super 1}}
 
+
 ;; Whenever a value isn't found in a given map, the prototype chain
 ;; is followed to the end
 (defn get [m k]
@@ -33,7 +34,7 @@
 (def morris (beget {:likes-9lives true} animal-cat))
 (def post-traumatic-morris (beget {:likes-dogs nil} morris))
 
-(get animal-cat :likes-dogs)
+(get animal-cat :likes-dog)
 ;; => true
 
 (get morris :likes-dogs)
@@ -69,7 +70,7 @@
 (home unix)
 ;; => "/home"
 
-(home osx)
+;; (home osx)
 ;; Unhandled java.lang.IllegalArgumentException
 ;; No method in multimethod 'home' for dispatch value:
 ;; :ch-09-multimethods/osx
@@ -98,7 +99,7 @@
 (derive ::osx ::bsd)
 (defmethod home ::bsd [m] "/home")
 
-(home osx)
+;; (home osx)
 ;; Unhandled java.lang.IllegalArgumentException
 ;; Multiple methods in multimethod 'home' match dispatch value:
 ;; :ch-09-multimethods/osx -> :ch-09-multimethods/unix and
@@ -164,3 +165,151 @@
 
 (dissoc (TreeNode. 5 nil nil) :1)
 ;; => #ch_09_multimethods.TreeNode{:val 5, :l nil, :r nil}
+
+(defprotocol FIXO
+  (fixo-push [fixo value])
+  (fixo-pop [fixo])
+  (fixo-peek [fixo]))
+
+(extend-type TreeNode
+  FIXO
+  (fixo-push [node value]
+    (xconj node value)))
+
+(xseq (fixo-push sample-tree 5/2))
+;; => (2 5/2 3 4 5 6)
+
+(extend-type clojure.lang.IPersistentVector
+  FIXO
+  (fixo-push [vector value]
+    (conj vector value)))
+
+(fixo-push [2 3 4 5 6] 5/2)
+;; => [2 3 4 5 6 5/2]
+
+(defprotocol StringOps (rev [s]) (upp [s]))
+
+(extend-type String
+  StringOps
+  (rev [s] (clojure.string/reverse s)))
+
+(rev "Works")
+;; => "skroW"
+
+(extend-type String
+  StringOps
+  (upp [s] (clojure.string/upper-case s)))
+
+(upp "works")
+
+;; (rev "Works?")
+;; Unhandled java.lang.IllegalArgumentException
+;; No implementation of method: :rev of protocol:
+
+(def rev-mixin {:rev clojure.string/reverse})
+
+(def upp-mixin {:upp (fn [this] (.toUpperCase this))})
+
+(def fully-mixed (merge upp-mixin rev-mixin))
+
+(extend String StringOps fully-mixed)
+
+(-> "Works" upp rev)
+
+(extend-type nil
+  FIXO
+  (fixo-push [t v]
+    (TreeNode. v nil nil)))
+
+(xseq (reduce fixo-push nil [3 5 2 4 6 0]))
+;; => (0 2 3 4 5 6)
+
+(extend-type TreeNode
+  FIXO
+  (fixo-push [node value]
+    (xconj node value))
+  (fixo-peek [node]
+    (if (:l node)
+      (recur (:l node))
+      (:val node)))
+  (fixo-pop [node]
+    (if (:l node)
+      (TreeNode. (:val node) (fixo-pop (:l node)) (:r node))
+                 (:r node))))
+
+
+(extend-type clojure.lang.IPersistentVector
+  FIXO
+  (fixo-push [vector value]
+    (conj vector value))
+  (fixo-peek [vector]
+    (peek vector))
+  (fixo-pop [vector]
+    (pop vector)))
+
+(defn fixo-into [c1 c2]
+  (reduce fixo-push c1 c2))
+
+(xseq (fixo-into (TreeNode. 5 nil nil) [2 4 6 7]))
+;; => (2 4 5 6 7)
+
+(defn fixed-fixo
+  ([limit] (fixed-fixo limit []))
+  ([limit vector]
+   (reify FIXO
+     (fixo-push [this value]
+       (if (< (count vector) limit)
+         (fixed-fixo limit (conj vector value))
+         this))
+     (fixo-peek [_]
+       (peek vector))
+     (fixo-pop [_]
+       (pop vector)))))
+
+(defrecord TreeNode2 [val l r]
+  FIXO
+  (fixo-push [t v]
+    (if (< v val)
+      (TreeNode2. val (fixo-push 1 v) r)
+      (TreeNode2. val 1 (fixo-push r v))))
+  (fixo-peek [t]
+    (if l
+      (fixo-peek l)
+      val))
+  (fixo-pop [t]
+    (if l
+      (TreeNode2. val (fixo-pop l) r)
+      r)))
+
+;; Chess move implementation
+{:from "e7" :to "e8" :castle? false :promotion \Q}
+
+(defn build-move [& pieces]
+  (apply hash-map pieces))
+
+(build-move :from "e7" :to "e8" :promotoion \Q)
+;; => {:promotoion \Q, :from "e7", :to "e8"}
+
+;; Alternative if we want to print output
+(defrecord Move [from to castle? promotion]
+  Object
+  (toString [this]
+    (str "Move " (:from this)
+         " to " (:to this)
+         (if (:castle? this) " castle"
+             (if-let [p (:promotion this)]
+               (str " promoto to " p)
+               "")))))
+
+(str (Move. "e2" "e4" nil nil))
+;; => "Move e2 to e4"
+
+(str (Move. "e7" "e8" nil \Q))
+;; => "Move e7 to e8 promoto to Q"
+
+(defn build-move-2 [& {:keys [from to castle? promotion]}]
+  {:pre [from to]}
+  (Move. from to castle? promotion))
+
+(str (build-move-2 :from "e2" :to "e4"))
+;; => "Move e2 to e4"
