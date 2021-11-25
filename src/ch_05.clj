@@ -28,7 +28,7 @@ dsv1 ; (:willie :quentin :adam)
 ; Sequence: A sequential collection that may or may not exist yet
 (map dec [1 2 3]) ; (0 1 2)
 ;
-; Seq: A simple API for navigating collections 
+; Seq: A simple API for navigating collections
 (first [1 2 3]) ; 1
 (rest [1 2 3]) ; (2 3)
 () ; ()
@@ -37,10 +37,10 @@ dsv1 ; (:willie :quentin :adam)
 (seq []) ; nil
 (seq [1 2]) ; (1 2)
 
-; If two sequentials have the same values in the same order, = returns true 
+; If two sequentials have the same values in the same order, = returns true
 ; for them, even if their concrete types are different
 (= [1 2 3] '(1 2 3)) ; true
-; Conversely, even if two collections have the same exact values, if one is a 
+; Conversely, even if two collections have the same exact values, if one is a
 ; sequential collecton and the other isn't, = returns false
 (= [1 2 3] #{1 2 3}) ; false
 
@@ -109,7 +109,7 @@ dsv1 ; (:willie :quentin :adam)
 (+ (peek my-stack) (peek (pop my-stack))) ; 5
 
 ; Using vectors instead of reverse
-; The ability of vectors to grow efficiently on the right side and then be 
+; The ability of vectors to grow efficiently on the right side and then be
 ; walked right means you rarely need the `reverse` function
 (defn strict-map-1 [f coll]
   (loop [coll coll, acc nil]
@@ -118,7 +118,7 @@ dsv1 ; (:willie :quentin :adam)
       (recur (next coll)
              (cons (f (first coll)) acc)))))
 (strict-map-1 - (range 5)) ; (0 -1 -2 -3 -4)
-; One way to get rid of the reverse is to use a vector instead of a list 
+; One way to get rid of the reverse is to use a vector instead of a list
 ; as the accumulator
 (defn strict-map-2 [f coll]
   (loop [coll coll, acc []]
@@ -177,7 +177,7 @@ schedule
 ; return a seq rather than a queue which can cause subtle bugs
 
 ; Persistent sets
-; Clojure sets work the same as mathematical sets - they are collections of 
+; Clojure sets work the same as mathematical sets - they are collections of
 ; unsorted unique elements
 ; Sets are functions of their elements that return the matched element or nil
 (#{:a :b :c :d} :c) ; :c
@@ -222,25 +222,25 @@ schedule
 ; Given n sets, it incrementally returns the intersection of resulting sets
 ; and the next set
 (clojure.set/intersection #{:humans :fruit-bats :zombies}
-                          #{:chupacabra :zombies :humans}) 
+                          #{:chupacabra :zombies :humans})
 ; #{:zombies :humans}
 ; The common elements between the given sets are returned
 
 (clojure.set/intersection #{:pez :gum :dots :skor}
                           #{:pez :skor :pocky}
-                          #{:pocky :gum}) 
+                          #{:pocky :gum})
 ; #{:skor}
 ; This is the result of the intersection of the first two sets, then
 ; intersected with the final set
 
 ; Union
 (clojure.set/union #{:humans :fruit-bats :zombies}
-                   #{:chupacabra :zombies :humans}) 
+                   #{:chupacabra :zombies :humans})
 ; #{:chupacabra :zombies :humans :fruit-bats}
 
 (clojure.set/union #{:pez :gum :dots :skor}
                    #{:pez :skor :pocky}
-                   #{:pocky :gum :skor})  
+                   #{:pocky :gum :skor})
 ; #{:pocky :pez :skor :dots :gum}
 ; Takes all distinct elements and returns in a set
 
@@ -252,17 +252,17 @@ schedule
 
 ; Thinking in maps
 ; Hash maps
-(hash-map :a 1 :b 2 :c 3 :d 4 :e 5) 
+(hash-map :a 1 :b 2 :c 3 :d 4 :e 5)
 ; {:e 5, :c 3, :b 2, :d 4, :a 1}
 
 ; Clojure supports heterogeneous keys, meaning they can be of any type
 (let [m {:a 1, 1 :b, [1 2 3] "4 5 6"}]
-  [(get m :a) (get m [1 2 3])]) 
+  [(get m :a) (get m [1 2 3])])
 ; [1 "4 5 6"]
 
 ; Clojure maps are functions of their keys
 (let [m {:a 1, 1 :b, [1 2 3] "4 5 6"}]
-  [(m :a) (m [1 2 3])]) 
+  [(m :a) (m [1 2 3])])
 ; [1 "4 5 6"]
 
 ; Providing a map to the seq function returns a sequence of map entries
@@ -272,15 +272,15 @@ schedule
 (zipmap [:a :b] [1 2]) ; {:a 1, :b 2}
 
 ; Sorted maps
-; Maps in Clojure have no order guarantees. If that is required use 
+; Maps in Clojure have no order guarantees. If that is required use
 ; sorted maps
 (sorted-map :thx 1138 :r2d 2) ; {:r2d 2, :thx 1138}
 (sorted-map "bac" 2 "abc" 9) ; {"abc" 9, "bac" 2}
 ; sorted-map-by takes an additional comparison function
-(sorted-map-by #(compare (subs %1 1) (subs %2 1)) "bac" 2 "abc" 9) 
+(sorted-map-by #(compare (subs %1 1) (subs %2 1)) "bac" 2 "abc" 9)
 ; {"bac" 2, "abc" 9}
 (sorted-map :a 1, "b" 2)
-; (err) class clojure.lang.Keyword cannot be cast to class java.lang.String 
+; (err) class clojure.lang.Keyword cannot be cast to class java.lang.String
 
 (assoc {1 :int} 1.0 :float) ; {1 :int, 1.0 :float}
 ; Hash maps treat long, int, float etc as different but sorted-map uses
@@ -311,8 +311,8 @@ schedule
 (pos 3 {:a 1 :b 2 :c 3 :d 4}) ; :c
 (pos \3 ":a 1 :b 2 :c 3 :d 4") ; 13
 
-; pos works but it's already quite complex - not great if we want to add new 
-; functionality to it 
+; pos works but it's already quite complex - not great if we want to add new
+; functionality to it
 ; trying to check for collection type makes the implementation too specific,
 ; where possible this should be avoided in favour of more generic algorithms
 
@@ -323,13 +323,13 @@ schedule
     (set? coll) (map vector coll coll)
     :else (map vector (iterate inc 0) coll)))
 
-(index [:a 1 :b 2 :c 3 :d 4]) 
+(index [:a 1 :b 2 :c 3 :d 4])
 ; ([0 :a] [1 1] [2 :b] [3 2] [4 :c] [5 3] [6 :d] [7 4])
 
-(index {:a 1 :b 2 :c 3 :d 4}) 
+(index {:a 1 :b 2 :c 3 :d 4})
 ; ([:a 1] [:b 2] [:c 3] [:d 4])
 
-(index #{:a 1 :b 2 :c 3 :d 4}) 
+(index #{:a 1 :b 2 :c 3 :d 4})
 ; ([1 1] [4 4] [:c :c] [3 3] [2 2] [:b :b] [:d :d] [:a :a])
 
 (defn pos2 [e coll]
@@ -345,4 +345,3 @@ schedule
 
 (pos3 #{3 4} {:a 1 :b 2 :c 3 :d 4}) ; (:c :d)
 (pos3 even? [2 3 4 7]) ; (0 2)
-
