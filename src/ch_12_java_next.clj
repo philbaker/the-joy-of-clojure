@@ -299,3 +299,213 @@ sary
       (.start (Thread. #(.run f)))
       (.get f))
 ;; => 42
+
+;; Using Clojure data structures in Java APIs
+;; The java.util.List interface
+(.get '[a b c] 1) ;; vectors
+;; => b
+
+(.get (repeat :a) 138) ;; lazy seqs
+;; => :a
+
+(.containsAll '[a b c] '[b c]) ;; vectors are collections
+;; => true
+
+(.add '[a b c] 'd) ;; sequences aren't mutable
+;; Unhandled java.lang.UnsupportedOperationException
+
+(java.util.Collections/sort [3 4 2 1])
+;; Unhandled java.lang.UnsupportedOperationException
+
+;; The java.lang.Comparable interface
+;; Comparable is the cousin of the Comparator interface. Comparator
+;; refers to objects that can compare two other objects, whereas
+;; Comparable refers to an object tha tcan compare itself to another
+;; object
+(.compareTo [:a] [:a])
+;; => 0
+
+(.compareTo [:a :b] [:a])
+;; => 1
+
+(.compareTo [:a :b] [:a :b :c])
+;; => -1
+
+(sort [[:a :b :c] [:a] [:a :b]])
+;; => ([:a] [:a :b] [:a :b :c])
+
+(.compareTo [1 2 3] '(1 2 3))
+;; Unhandled java.lang.ClassCastException
+;; class clojure.lang.PersistentList cannot be cast to class
+;; clojure.lang.IPersistentVector
+
+(.get '[a b c] 2)
+;; => c
+
+;; The java.util.Collection interface
+(defn shuffle [coll]
+  (seq (doto (java.util.ArrayList. coll)
+         java.util.Collections/shuffle)))
+
+(shuffle (range 10))
+;; => (6 4 0 7 9 2 8 3 5 1)
+
+;; The Java.Util.Map interface
+(java.util.Collections/unmodifiableMap
+ (doto (java.util.HashMap.) (.put :a 1)))
+;; => {:a 1}
+
+(into {} (doto (java.util.HashMap.) (.put :a 1)))
+;; => {:a 1}
+
+;; The java.util.Set interface
+;; In Java and Clojure sets the use of mutable objects as elements
+;; is highly frowned upon
+
+(def x (java.awt.Point. 0 0))
+(def y (java.awt.Point. 0 42))
+(def points #{x y})
+points
+;; => #{#object[java.awt.Point 0x4915a4b7 "java.awt.Point[x=0,y=0]"]
+;;      #object[java.awt.Point 0x6b313289 "java.awt.Point[x=0,y=42]"]}
+
+(.setLocation y 0 0)
+
+points
+;; => #{#object[java.awt.Point 0x4915a4b7 "java.awt.Point[x=0,y=0]"]
+;;      #object[java.awt.Point 0x6b313289 "java.awt.Point[x=0,y=0]"]}
+
+;; Interface definining a sliceable object
+(definterface ISliceable
+  (slice [^long s ^long e])
+  (^long sliceCount []))
+;; => ch_12_java_next.ISliceable
+
+(def dumb
+  (reify ISliceable
+    (slice [_ s e] [:empty])
+    (sliceCount [_] 42)))
+
+(.sliceCount dumb)
+;; => 42
+
+(defprotocol Sliceable
+  (slice [this s e])
+  (sliceCount [this]))
+
+(extend ISliceable
+  Sliceable
+  {:slice (fn [this s e] (.slice this s e))
+   :sliceCount (fn [this] (.sliceCount this))})
+
+(sliceCount dumb)
+;; => 42
+
+(slice dumb 0 0)
+;; => [:empty]
+
+;; Extending strings along the Sliceable protocol
+(defn calc-slice-count [thing]
+  "Calculates the number of possible slices using the formula:
+    (n + r - 1)!
+    -----------
+    r!(n - 1)!
+   where n is (count thing) and r is 2"
+  (let [! #(reduce * (take % (iterate inc 1)))
+        n (count thing)]
+    (/ (! (- (+ n 2) 1))
+       (* (! 2) (! (- n 1))))))
+
+(extend-type String
+  Sliceable
+  (slice [this s e] (.substring this s (inc e)))
+  (sliceCount [this] (calc-slice-count this)))
+
+(slice "abc" 0 1)
+;; => "ab"
+
+(sliceCount "abc")
+;; => 6
+
+;; Be wary of exceptions
+;; When writing Clojure code, use erros to mean can't continue and
+;; exceptions to mean can or might continue
+
+;; Runtime exceptions
+(defn explode [] (explode))
+(try (explode) (catch Exception e "Stack is blown"))
+;; Unhandled java.lang.StackOverflowError
+(try (explode) (catch StackOverflowError e "Stack is blown"))
+;; => "Stack is blown"
+(try (explode) (catch Error e "Stack is blown"))
+;; => "Stack is blown"
+(try (explode) (catch Throwable e "Stack is blown"))
+;; => "Stack is blown"
+(try (throw (RuntimeException.))
+     (catch Throwable e "Catching Throwable is Bad"))
+;; => "Catching Throwable is Bad"
+
+;; Compile time exceptions
+(defmacro do-something [x] `(~x))
+(do-something 1)
+;; Unhandled java.lang.ClassCastException
+;; class java.lang.Long cannot be cast to class clojure.lang.IFn
+
+(defmacro pairs [& args]
+  (if (even? (count args))
+    `(partition 2 '~args)
+    (throw (Exception.
+            (str "pairs requires an even number of args")))))
+
+(pairs 1 2 3)
+;; Unhandled clojure.lang.Compiler$CompilerException
+;; Caused by java.lang.Exception
+;; pairs requires an even number of args
+
+(pairs 1 2 3 4)
+;; => ((1 2) (3 4))
+
+(fn [] (pairs 1 2 3))
+;; Unhandled clojure.lang.Compiler$CompilerException
+;; Caused by java.lang.Exception
+;; pairs requires an even number of args
+
+;; Handling exceptions
+(defmacro -?> [& forms]
+  `(try (-> ~@forms)
+        (catch NullPointerException _# nil)))
+
+(-?> 25 Math/sqrt (+ 100))
+;; => 105.0
+
+(-?> 25 Math/sqrt (and nil) (+ 100))
+;; => nil
+
+;; Custom exceptions
+;; The idiom for Clojure is to throw derivatives of RunTimeException or
+;; Error rather than its own custom exceptions
+
+(defn perform-unclean-act [x y]
+  (/ x y))
+
+(try
+  (perform-unclean-act 42 0)
+  (catch RuntimeException ex
+    (println (str "Something went wrong."))))
+;; Something went wrong.
+
+(defn perform-cleaner-act [x y]
+  (try
+    (/ x y)
+    (catch ArithmeticException ex
+      (throw (ex-info "You attempted an unclean act"
+                      {:args [x y]})))))
+
+(try
+  (perform-cleaner-act 108 0)
+  (catch RuntimeException ex
+    (println (str "Received error: " (.getMessage ex)))
+    (when-let [ctx (ex-data ex)]
+      (println (str "More information: " ctx)))))
+;; Received error: You attempted an unclean act
+;; More information: {:args [108 0]}
