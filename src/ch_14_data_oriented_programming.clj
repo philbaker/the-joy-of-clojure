@@ -219,11 +219,11 @@
 
 ;; Generating a random baseball event based on player ability
 (defn rand-event [{ability :ability}]
-  (let [able (numerator ability)
+  (let [abil (numerator ability)
         max (denominator ability)]
     (rand-map 1
               #(-> :result)
-              #(if (< (rand-int max) able)
+              #(if (< (rand-int max) abil)
                  :hit
                  :out))))
 
@@ -236,3 +236,99 @@
 
 (rand-events 3 {:player "Nick" :ability 32/100})
 ;; => ({:result :hit, :player "Nick"} {:result :out, :player "Nick"} {:result :hit, :player "Nick"})
+
+;; Creating or retrieving a unique agent for a given player name
+(def agent-for-player
+  (memoize
+   (fn [player-name]
+     (-> (agent [])
+         (set-error-handler! #(println "ERROR: " %1 %2))
+         (set-error-mode! :fail)))))
+
+;; Feeding an event into the data store and player event store
+(defn feed [db event]
+  (let [a (agent-for-player (:player event))]
+    (send a
+          (fn [state]
+            (commit-event db event)
+            (conj state event)))))
+
+;; Feeding all events into a data store and player event stores
+(defn feed-all [db events]
+  (doseq [event events]
+    (feed db event))
+  db)
+
+;; (let [db (ref PLAYERS)]
+;;   (feed-all db (rand-events 100 {:player "Nick" :ability 32/100}))
+;;   db)
+
+;; Code as data as code
+;; Putting parentheses around the specification
+(defn meters->feet [m] (* m 3.28083989501312))
+
+(defn meters->miles [m] (* m 0.000621))
+
+(meters->feet 1609.344)
+;; => 5279.9999999999945
+
+(meters->miles 1609.344)
+;; => 0.999402624
+
+;; Building DSLs in Clojure
+;; Specification:
+;; The base unit of distance is the meter. There are 1,000 meters in a
+;; kilometer. There are 100 centimeters in a meter. There are 10
+;; milimeters in a centimeter. There are 3.28083 feet in a meter.
+;; And finally, there are 5,280 feet in a mile
+
+;; (def unit-of-distance
+;;   {:m 1
+;;    :km 1000
+;;    :cm 1/100
+;;    :mm [1/10 :cm]
+;;    :ft 0.3048
+;;    :mile [5280 :ft]})
+
+;; Driving the calculation of compositional units of measure
+(defn relative-units [context unit]
+  (if-let [spec (get context unit)]
+    (if (vector? spec)
+      (convert context spec)
+      spec)
+    (throw (RuntimeException. (str "Undefined unit " unit)))))
+
+(relative-units {:m 1 :cm 1/100 :mm [1/10 :cm]} :m)
+;; => 1
+
+(relative-units {:m 1 :cm 1/100 :mm [1/10 :cm]} :mm)
+;; => 1/1000
+
+;; defunits-of macro
+(defmacro defunits-of [name base-unit & conversions]
+  (let [magnitude (gensym)
+        unit (gensym)
+        units-map (into `{~base-unit 1}                         ;; #: Create the units map
+                        (map vec (partition 2 conversions)))]
+    `(defmacro ~(symbol (str "unit-of-" name))                  ;; #: Define the unit-of macro
+       [~magnitude ~unit]
+       `(* ~~magnitude                                          ;; #: Multiply magnitude by target unit
+           ~(case ~unit
+              ~@(mapcat                                     ;; #: Unroll the unit conversions into a case look-up
+                 (fn [[u# & r#]]
+                   `[~u# ~(relative-units units-map u#)])
+                 units-map))))))
+
+(defunits-of distance :m
+  {:km 1000
+   :cm 1/100
+   :mm [1/10 :cm]
+   :ft 0.3048
+   :mile [5280 :ft]})
+
+(unit-of-distance 1 :m)
+;; => 1
+
+;; (unit-of-distance 1 :cm)
+;; (unit-of-distance 1 :ft)
+;; (unit-of-distance 1 :mile)
