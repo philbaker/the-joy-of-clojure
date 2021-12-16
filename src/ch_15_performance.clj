@@ -1,5 +1,6 @@
 (ns ch-15-performance
-  (:require [criterium.core :as crit]))
+  (:require [clojure.core.reducers :as r]
+            [criterium.core :as crit]))
 
 (defn asum-sq [xs]
   (let [dbl (amap xs i ret
@@ -389,5 +390,107 @@
 ;; => [0 1 3 4]
 
 ;; Performance of reducibles
-(crit/bench
- (reduce + 0 (filter even? (map half (lazy-range 0 (* 10 1000 1000) 2)))))
+;; (crit/bench
+;;  (reduce + 0 (filter even? (map half (lazy-range 0 (* 10 1000 1000) 2)))))
+;; Evaluation count : 60 in 60 samples of 1 calls.
+;;              Execution time mean : 2.416207 sec
+;;     Execution time std-deviation : 481.890683 ms
+;;    Execution time lower quantile : 2.005460 sec ( 2.5%)
+;;    Execution time upper quantile : 3.188402 sec (97.5%)
+;;                    Overhead used : 10.806846 ns
+
+;; Found 2 outliers in 60 samples (3.3333 %)
+;; 	low-severe	 1 (1.6667 %)
+;; 	low-mild	 1 (1.6667 %)
+;;  Variance from outliers : 91.1165 % Variance is severely inflated by outliers
+
+;; (crit/bench
+;;  (reduce + (filter even? (map half (range 0 (* 10 1000 1000) 2)))))
+;; Evaluation count : 120 in 60 samples of 2 calls.
+;;              Execution time mean : 591.282903 ms
+;;     Execution time std-deviation : 18.737365 ms
+;;    Execution time lower quantile : 572.454516 ms ( 2.5%)
+;;    Execution time upper quantile : 640.558565 ms (97.5%)
+;;                    Overhead used : 10.806846 ns
+
+;; Found 5 outliers in 60 samples (8.3333 %)
+;; 	low-severe	 2 (3.3333 %)
+;; 	low-mild	 3 (5.0000 %)
+;;  Variance from outliers : 18.9627 % Variance is moderately inflated by outliers
+
+;; (crit/bench
+;;  ((r-filter even? (r-map half
+;;                          (reducible-range 0 (* 10 1000 1000) 2))) + 0))
+;; Evaluation count : 180 in 60 samples of 3 calls.
+;;              Execution time mean : 632.920490 ms
+;;     Execution time std-deviation : 144.543277 ms
+;;    Execution time lower quantile : 428.749236 ms ( 2.5%)
+;;    Execution time upper quantile : 830.525741 ms (97.5%)
+;;                    Overhead used : 10.806846 ns
+
+;; Converting transformers to core reducibles
+(defn core-r-map [mapping-fn core-reducible]
+  (r/reducer core-reducible (mapping mapping-fn)))
+
+(defn core-r-filter [filter-pred core-reducible]
+  (r/reducer core-reducible (filtering filter-pred)))
+
+(reduce conj []
+        (core-r-filter #(not= % 2)
+                       (core-r-map half [0 2 4 6 8])))
+;; => [0 1 3 4]
+
+;; The fold function: reducing in parallel
+(reduce + [1 2 3 4 5])
+;; => 15
+
+(r/fold + [1 2 3 4 5])
+;; => 15
+
+;; Converting transformers to core foldables
+(defn core-f-map [mapping-fn core-reducible]
+  (r/folder core-reducible (mapping mapping-fn)))
+
+(defn core-f-filter [filter-pred core-reducible]
+  (r/folder core-reducible (filtering filter-pred)))
+
+(r/fold +
+        (core-f-filter #(not= % 2)
+                       (core-f-map half
+                                   [0 2 4 6 8])))
+;; => 8
+
+(r/fold +
+        (r/filter #(not= % 2)
+                  (r/map half
+                         [0 2 4 6 8])))
+;; => 8
+
+(r/fold (fn ([] 100) ([a b] (+ a b))) (range 10))
+;; => 145
+
+(r/fold (r/monoid + (constantly 100)) (range 10))
+;; => 145
+
+(r/fold 512
+        (r/monoid + (constantly 100))
+        +
+        (range 10))
+;; => 145
+
+(r/fold 4 (r/monoid conj (constantly [])) conj (vec (range 10)))
+;; => [0 1 [2 3 4] [5 6 [7 8 9]]]
+
+(r/fold 4 (r/monoid into (constantly [])) conj (vec (range 10)))
+;; => [0 1 2 3 4 5 6 7 8 9]
+
+(r/foldcat (r/filter even? (vec (range 1000))))
+;; => #object[clojure.core.reducers.Cat 0x5bcf3787 "clojure.core.reducers.Cat@5bcf3787"]
+
+(seq (r/foldcat (r/filter even? (vec (range 10)))))
+;; => (0 2 4 6 8)
+
+;; (def big-vector (vec (range 0 (* 10 1000 1000) 0)))
+
+;; (crit/bench
+;;  (r/fold + (core-f-filter even? (core-f-map half big-vector))))
