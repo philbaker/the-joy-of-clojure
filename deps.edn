@@ -1,6 +1,7 @@
 {:paths ["src"]
  :deps
  {org.clojure/clojure {:mvn/version "1.10.1"}
+  org.clojure/core.logic {:mvn/version "1.0.0"}
   criterium/criterium {:mvn/version "0.4.6"}}
  :aliases
  {:dev
