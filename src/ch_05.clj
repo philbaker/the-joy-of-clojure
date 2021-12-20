@@ -60,7 +60,7 @@ dsv1 ; (:willie :quentin :adam)
 
 (into (vector-of :char) [100 101 102]) ; [\d \e \f]
 
-(into (vector-of :int) [1 442042942966429420642094091111])
+;; (into (vector-of :int) [1 442042942966429420642094091111])
 ; (err) Value out of range for long: 442042942966429420642094091111
 
 ; Large vectors
@@ -201,12 +201,12 @@ schedule
 ; are mutually comparable
 (sorted-set :b :c :a) ; #{:a :b :c}
 (sorted-set [3 4] [1 2]) ; #{[1 2] [3 4]}
-(sorted-set :b 2 :c :a 3 1)
+;; (sorted-set :b 2 :c :a 3 1)
 ; (err) class clojure.lang.Keyword cannot be cast to class java.lang.Number...
 
 (def my-set (sorted-set :a :b))
 ; ... some time later
-(conj my-set "a")
+;; (conj my-set "a")
 ; (err) class clojure.lang.Keyword cannot be cast to class java.lang.String...
 
 ; contains? will work with sets
@@ -279,7 +279,7 @@ schedule
 ; sorted-map-by takes an additional comparison function
 (sorted-map-by #(compare (subs %1 1) (subs %2 1)) "bac" 2 "abc" 9)
 ; {"bac" 2, "abc" 9}
-(sorted-map :a 1, "b" 2)
+;; (sorted-map :a 1, "b" 2)
 ; (err) class clojure.lang.Keyword cannot be cast to class java.lang.String
 
 (assoc {1 :int} 1.0 :float) ; {1 :int, 1.0 :float}
