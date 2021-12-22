@@ -1,8 +1,9 @@
 (ns ch-17-change-thinking
   (:require [clojure.set :as ra]
-            [ch-11-parallelism :as joy])
-  (:use [clojure.string :as str :only []]))
-
+            [ch-11-parallelism :as joy]
+            [ch-08 :as contracts])
+  (:use [clojure.string :as str :only []]
+        [clojure.test]))
 
 
 (def artists
@@ -140,3 +141,68 @@
 ;; => {:query "SELECT a, b, c FROM X LEFT JOIN Y ON (X.a = Y.b) WHERE ((a < 5) AND (b < ?))", :bindings [9]}
 
 ;; Using with-redefs to create stubs
+(def stubbed-feed-children
+  (constantly [{:content [{:tag :title
+                           :content ["Stub"]}]}]))
+
+(defn count-feed-entries [url]
+  (count (joy/feed-children url)))
+
+(count-feed-entries "http://blog.fogus.me/feed/")
+;; => 5
+
+(with-redefs [joy/feed-children stubbed-feed-children]
+  (count-feed-entries "dummy url"))
+;; => 1
+
+(with-redefs [joy/feed-children stubbed-feed-children]
+  (joy/occurrences joy/title "Stub" "a" "b" "c"))
+;; => 3
+
+;; clojure.test as a partial specification
+(deftest feed-tests
+  (with-redefs [joy/feed-children stubbed-feed-children]
+    (testing "Child Counting"
+      (is (= 1000 (count-feed-entries "Dummy URL"))))
+    (testing "Occurence Counting"
+      (is (= 0 (joy/count-text-task
+                joy/title
+                "ZOMG"
+                "Dummy URL"))))))
+
+(run-tests)
+;; => {:test 1, :pass 1, :fail 1, :error 0, :type :summary}
+;; FAIL in (feed-tests) (NO_SOURCE_FILE:165)
+;; Child Counting
+;; expected: (= 1000 (count-feed-entries "Dummy URL"))
+;;   actual: (not (= 1000 1))
+
+;; Ran 1 tests containing 2 assertions.
+;; 1 failures, 0 errors.
+
+;; Creating formulas that are like spreadsheet cells
+(defmacro defformula [nm bindings & formula]
+  `(let ~bindings
+     (let [formula# (agent ~@formula)
+           update-fn# (fn [key# ref# o# n#]
+                        (send formula# (fn [_#] ~@formula)))]
+       (doseq [r# ~(vec (map bindings
+                             (range 0 (count bindings) 2)))]
+         (add-watch r# :update-formula update-fn#))
+       (def ~nm formula#))))
+
+;; defformula to track baseball averages
+(def h (ref 25))
+(def ab (ref 100))
+
+(defformula avg
+  [at-bats ab, hits h]
+  (float (/ @hits @at-bats)))
+
+@avg
+;; => 0.25
+
+(dosync (ref-set h 33))
+
+@avg
+;; => 0.33

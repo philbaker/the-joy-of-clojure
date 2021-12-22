@@ -2,7 +2,7 @@
   (:require [clojure.walk :as walk]
             [clojure.xml :as xml])
   (:import [java.io BufferedReader InputStreamReader]
-          [java.net URL]))
+           [java.net URL]))
 
 ;; Macros
 
@@ -22,7 +22,7 @@
 (eval '(list 1 2))
 ; => (1 2)
 
-(eval (list 1 2))
+;; (eval (list 1 2))
 ; Unhandled java.l ang.ClassCastException
 ; class java.lang.Long cannot be cast to class clojure.lang.IFn
 
@@ -98,7 +98,7 @@
 (macroexpand `(if (not condition) "got it"))
 ; => (if (clojure.core/not ch-08/condition) "got it")
 
-(eval `(if (not condition) "got it"))
+;; (eval `(if (not condition) "got it"))
 ; Caused by java.lang.RuntimeException
 ; No such var: ch-08/condition
 
@@ -135,7 +135,6 @@ x
   `{:tag :grouping,
     :attrs {:name (str '~name)}
     :content [~@(handle-things body)]})
-
 
 (declare grok-attrs grok-props)
 
@@ -275,7 +274,7 @@ x
 
 (def times3 (partial doubler-contract #(* 3 %)))
 
-(times3 9)
+;; (times3 9)
 ; Unhandled java.lang.AssertionError
 ; Assert failed: (= (* 2 x) %)
 
@@ -300,6 +299,6 @@ x
 ((partial doubler-contract #(+ %1 %1 %2 %2)) 2 3)
 ; => 10
 
-((partial doubler-contract #(* 3 (+ %1 %2))) 2 3)
+;; ((partial doubler-contract #(* 3 (+ %1 %2))) 2 3)
 ; Unhandled java.lang.AssertionError
 ; Assert failed: (= (* 2 (+ x y)) %)

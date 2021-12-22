@@ -308,19 +308,19 @@
 (time (exercise-agents send))
 ;; "Elapsed time: 2001.43404 msecs"
 
-(send log-agent (fn [] 2000)) ; incorrect
+;; (send log-agent (fn [] 2000)) ; incorrect
 
 @log-agent
 
 ;; (agent-error log-agent);; => #error {
 ;;     :cause "Wrong number of args (1) passed...
 
-(send log-agent (fn [_] 3000))
+;; (send log-agent (fn [_] 3000))
 
 @log-agent
 
 ;; To get the agent back in working order, you need to restart it:
-(restart-agent log-agent 2500 :clear-actions true)
+;; (restart-agent log-agent 2500 :clear-actions true)
 ;; => 2500
 
 (send-off log-agent do-log "The agent, it lives!")
